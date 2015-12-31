@@ -1098,9 +1098,10 @@ ospf_filter_update (struct access_list *access)
     ospf_schedule_abr_task (ospf);
 }
 
-/* If prefix-list is updated, do some updates. */
+/* If prefix-list is added/updated/deleted - update internal data to [not] use
+      prefix-list and schedule abr task. */
 void
-ospf_prefix_list_update (struct prefix_list *plist)
+do_ospf_prefix_list_real_update (struct prefix_list *plist, unsigned char delete_flag)
 {
   struct ospf *ospf;
   int type;
@@ -1133,8 +1134,7 @@ ospf_prefix_list_update (struct prefix_list *plist)
       if (PREFIX_NAME_IN (area))
         if (strcmp (PREFIX_NAME_IN (area), prefix_list_name (plist)) == 0)
           {
-            PREFIX_LIST_IN (area) =
-              prefix_list_lookup (AFI_IP, PREFIX_NAME_IN (area));
+            PREFIX_LIST_IN (area) = (delete_flag)?NULL:prefix_list_lookup (AFI_IP, PREFIX_NAME_IN (area));
             abr_inv++;
           }
 
@@ -1142,8 +1142,7 @@ ospf_prefix_list_update (struct prefix_list *plist)
       if (PREFIX_NAME_OUT (area))
         if (strcmp (PREFIX_NAME_OUT (area), prefix_list_name (plist)) == 0)
           {
-            PREFIX_LIST_IN (area) =
-              prefix_list_lookup (AFI_IP, PREFIX_NAME_OUT (area));
+            PREFIX_LIST_OUT (area) = (delete_flag)?NULL:prefix_list_lookup (AFI_IP, PREFIX_NAME_OUT (area));
             abr_inv++;
           }
     }
@@ -1151,6 +1150,22 @@ ospf_prefix_list_update (struct prefix_list *plist)
   /* Schedule ABR task. */
   if (IS_OSPF_ABR (ospf) && abr_inv)
     ospf_schedule_abr_task (ospf);
+}
+
+/* Stub function for prefix-list add/update */
+void
+ospf_prefix_list_update (struct prefix_list *plist)
+{
+    /* delete_flag = 0, requesting add/update */
+    do_ospf_prefix_list_real_update(plist, 0);
+}
+
+/* Stub function for prefix-list deletion */
+void
+ospf_prefix_list_delete (struct prefix_list *plist)
+{
+    /* delete_flag = 1, requesting prefix-list deletion */
+    do_ospf_prefix_list_real_update(plist, 1);
 }
 
 static struct ospf_distance *
@@ -1323,5 +1338,5 @@ ospf_zebra_init (struct thread_master *master)
   access_list_add_hook (ospf_filter_update);
   access_list_delete_hook (ospf_filter_update);
   prefix_list_add_hook (ospf_prefix_list_update);
-  prefix_list_delete_hook (ospf_prefix_list_update);
+  prefix_list_delete_hook (ospf_prefix_list_delete);
 }

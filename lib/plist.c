@@ -308,6 +308,9 @@ prefix_list_delete (struct prefix_list *plist)
 
   master = plist->master;
 
+  if (master->delete_hook)
+    (*master->delete_hook) (plist);
+
   if (plist->type == PREFIX_TYPE_NUMBER)
     list = &master->num;
   else
@@ -334,9 +337,6 @@ prefix_list_delete (struct prefix_list *plist)
     XFREE (MTYPE_PREFIX_LIST_STR, plist->name);
   
   prefix_list_free (plist);
-  
-  if (master->delete_hook)
-    (*master->delete_hook) (NULL);
 }
 
 static struct prefix_list_entry *

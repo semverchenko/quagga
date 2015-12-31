@@ -4065,7 +4065,7 @@ peer_prefix_list_unset (struct peer *peer, afi_t afi, safi_t safi, int direct)
 
 /* Update prefix-list list. */
 static void
-peer_prefix_list_update (struct prefix_list *plist)
+do_peer_prefix_list_real_update (struct prefix_list *plist, unsigned char delete_flag)
 {
   struct listnode *mnode, *mnnode;
   struct listnode *node, *nnode;
@@ -4080,40 +4080,74 @@ peer_prefix_list_update (struct prefix_list *plist)
   for (ALL_LIST_ELEMENTS (bm->bgp, mnode, mnnode, bgp))
     {
       for (ALL_LIST_ELEMENTS (bgp->peer, node, nnode, peer))
-	{
-	  for (afi = AFI_IP; afi < AFI_MAX; afi++)
-	    for (safi = SAFI_UNICAST; safi < SAFI_MAX; safi++)
-	      {
-		filter = &peer->filter[afi][safi];
+			{
+				for (afi = AFI_IP; afi < AFI_MAX; afi++)
+					for (safi = SAFI_UNICAST; safi < SAFI_MAX; safi++)
+					{
+						filter = &peer->filter[afi][safi];
 
-		for (direct = FILTER_IN; direct < FILTER_MAX; direct++)
-		  {
-		    if (filter->plist[direct].name)
-		      filter->plist[direct].plist = 
-			prefix_list_lookup (afi, filter->plist[direct].name);
-		    else
-		      filter->plist[direct].plist = NULL;
-		  }
-	      }
-	}
+						for (direct = FILTER_IN; direct < FILTER_MAX; direct++)
+						{
+							if (delete_flag == 0)
+							{
+								if (filter->plist[direct].name)
+										filter->plist[direct].plist =
+											prefix_list_lookup (afi, filter->plist[direct].name);
+								else
+										filter->plist[direct].plist = NULL;
+							}
+							else
+							{
+								if (filter->plist[direct].name &&
+										(strcmp(filter->plist[direct].name, prefix_list_name(plist)) == 0))
+									filter->plist[direct].plist = NULL;
+							}
+						}
+					}
+			}
       for (ALL_LIST_ELEMENTS (bgp->group, node, nnode, group))
-	{
-	  for (afi = AFI_IP; afi < AFI_MAX; afi++)
-	    for (safi = SAFI_UNICAST; safi < SAFI_MAX; safi++)
-	      {
-		filter = &group->conf->filter[afi][safi];
+			{
+				for (afi = AFI_IP; afi < AFI_MAX; afi++)
+					for (safi = SAFI_UNICAST; safi < SAFI_MAX; safi++)
+						{
+						filter = &group->conf->filter[afi][safi];
 
-		for (direct = FILTER_IN; direct < FILTER_MAX; direct++)
-		  {
-		    if (filter->plist[direct].name)
-		      filter->plist[direct].plist = 
-			prefix_list_lookup (afi, filter->plist[direct].name);
-		    else
-		      filter->plist[direct].plist = NULL;
-		  }
-	      }
-	}
+						for (direct = FILTER_IN; direct < FILTER_MAX; direct++)
+							{
+								if (delete_flag == 0)
+								{
+									if (filter->plist[direct].name)
+										filter->plist[direct].plist =
+													prefix_list_lookup (afi, filter->plist[direct].name);
+									else
+										filter->plist[direct].plist = NULL;
+								}
+								else
+								{
+									if (filter->plist[direct].name &&
+											(strcmp(filter->plist[direct].name, prefix_list_name(plist)) == 0))
+									filter->plist[direct].plist = NULL;
+								}
+							}
+						}
+			}
     }
+}
+
+/* Update prefix-list list. */
+static void
+peer_prefix_list_update (struct prefix_list *plist)
+{
+    /* add/update, delete_flag = 0 */
+    do_peer_prefix_list_real_update(plist, 0);
+}
+
+/* Delete prefix-list list. */
+static void
+peer_prefix_list_delete (struct prefix_list *plist)
+{
+    /* delete prefix-list, delete_flag = 0 */
+    do_peer_prefix_list_real_update(plist, 1);
 }
 
 int
@@ -5577,7 +5611,7 @@ bgp_init (void)
   /* Prefix list initialize.*/
   prefix_list_init ();
   prefix_list_add_hook (peer_prefix_list_update);
-  prefix_list_delete_hook (peer_prefix_list_update);
+  prefix_list_delete_hook (peer_prefix_list_delete);
 
   /* Community list initialize. */
   bgp_clist = community_list_init ();
